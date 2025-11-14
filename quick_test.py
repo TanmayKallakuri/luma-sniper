@@ -5,6 +5,10 @@ Run this in VS Code to test your FriendliAI and Opik setup.
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 # Test 1: Check environment variables
 print("=" * 60)
