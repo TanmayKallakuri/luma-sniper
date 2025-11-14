@@ -76,12 +76,14 @@ if opik_key:
         opik.configure(api_key=opik_key)
         print("✅ Opik configured")
 
-        # Try to create a simple trace
-        opik.track(
+        # Try to create a simple trace using the client
+        client = opik.Opik()
+        trace = client.trace(
             name="test_trace",
             input={"test": "data"},
             output={"status": "success"},
         )
+        trace.end()
 
         print("✅ Opik API is working correctly!")
         print("🎉 Check your Opik dashboard to see the test trace!")

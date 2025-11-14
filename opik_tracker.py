@@ -119,14 +119,13 @@ class OpikTracker:
             return
 
         try:
-            # Log as a trace in Opik
-            import opik
-
-            opik.track(
+            # Log as a trace in Opik using the client
+            trace = self.client.trace(
                 name=event_type,
                 input=data,
                 output={"status": "logged"},
                 metadata={"timestamp": datetime.now().isoformat()},
             )
+            trace.end()
         except Exception as e:
             print(f"⚠️  Failed to log to Opik: {e}")
