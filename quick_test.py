@@ -73,7 +73,14 @@ if opik_key:
     try:
         import opik
 
-        opik.configure(api_key=opik_key)
+        # Configure with workspace if available
+        opik_workspace = os.getenv("OPIK_WORKSPACE", "")
+        config_params = {"api_key": opik_key}
+        if opik_workspace:
+            config_params["workspace"] = opik_workspace
+            print(f"   Using workspace: {opik_workspace}")
+
+        opik.configure(**config_params)
         print("✅ Opik configured")
 
         # Try to create a simple trace using the client

@@ -19,7 +19,12 @@ class OpikTracker:
             import opik
             from config import Config
 
-            opik.configure(api_key=Config.OPIK_API_KEY)
+            # Configure Opik with workspace if provided
+            config_params = {"api_key": Config.OPIK_API_KEY}
+            if Config.OPIK_WORKSPACE:
+                config_params["workspace"] = Config.OPIK_WORKSPACE
+
+            opik.configure(**config_params)
             self.client = opik.Opik()
             print("✅ Opik tracker initialized")
         except Exception as e:
