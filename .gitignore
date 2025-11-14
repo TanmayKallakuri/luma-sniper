@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+*.log
+.DS_Store
+chromedriver
+geckodriver
+*.db
+*.sqlite
+events_cache/

@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  luma-sniper:
+    build: .
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
