@@ -1,5 +1,4 @@
 """FriendliAI client for intelligent event matching."""
-import requests
 from typing import Dict, List
 from config import Config
 
@@ -10,10 +9,25 @@ class FriendliClient:
     def __init__(self):
         self.api_key = Config.FRIENDLI_API_KEY
         self.base_url = Config.FRIENDLI_BASE_URL
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        self.use_openai_sdk = True  # Use OpenAI SDK for better compatibility
+
+        if self.use_openai_sdk:
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                )
+                print("✅ FriendliAI client initialized (using OpenAI SDK)")
+            except ImportError:
+                print("⚠️  OpenAI SDK not available, falling back to requests")
+                self.use_openai_sdk = False
+                import requests
+                self.client = requests.Session()
+                self.headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                }
 
     def analyze_event(self, event_data: Dict, user_interests: List[str]) -> Dict:
         """
@@ -29,34 +43,60 @@ class FriendliClient:
         prompt = self._build_analysis_prompt(event_data, user_interests)
 
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json={
-                    "model": "meta-llama-3.1-8b-instruct",  # Using efficient model
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert event analyst. Analyze events and provide relevance scores based on user interests. Always respond in JSON format.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 300,
-                },
-                timeout=30,
-            )
-            response.raise_for_status()
-
-            result = response.json()
-            ai_response = result["choices"][0]["message"]["content"]
-
-            # Parse the AI response
-            return self._parse_ai_response(ai_response, event_data)
+            if self.use_openai_sdk:
+                return self._analyze_with_openai_sdk(prompt, event_data)
+            else:
+                return self._analyze_with_requests(prompt, event_data)
 
         except Exception as e:
             print(f"❌ Error analyzing event with FriendliAI: {e}")
-            return {"score": 0, "reasoning": f"Analysis failed: {str(e)}", "should_register": False}
+            print(f"   Falling back to keyword matching...")
+            return self._fallback_analysis(event_data)
+
+    def _analyze_with_openai_sdk(self, prompt: str, event_data: Dict) -> Dict:
+        """Analyze using OpenAI SDK (recommended)."""
+        response = self.client.chat.completions.create(
+            model="meta-llama-3.1-8b-instruct",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert event analyst. Analyze events and provide relevance scores based on user interests. Always respond in JSON format.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=300,
+        )
+
+        ai_response = response.choices[0].message.content
+        return self._parse_ai_response(ai_response, event_data)
+
+    def _analyze_with_requests(self, prompt: str, event_data: Dict) -> Dict:
+        """Analyze using requests library (fallback)."""
+        import requests
+
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=self.headers,
+            json={
+                "model": "meta-llama-3.1-8b-instruct",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an expert event analyst. Analyze events and provide relevance scores based on user interests. Always respond in JSON format.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 300,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        ai_response = result["choices"][0]["message"]["content"]
+        return self._parse_ai_response(ai_response, event_data)
 
     def _build_analysis_prompt(self, event_data: Dict, user_interests: List[str]) -> str:
         """Build the prompt for event analysis."""
@@ -104,12 +144,14 @@ Respond ONLY with the JSON object, no additional text."""
                 }
         except Exception as e:
             print(f"⚠️  Failed to parse AI response: {e}")
+            print(f"   Response was: {ai_response[:200]}...")
 
         # Fallback: basic keyword matching
+        print(f"   Using fallback keyword analysis")
         return self._fallback_analysis(event_data)
 
     def _fallback_analysis(self, event_data: Dict) -> Dict:
-        """Fallback analysis if AI parsing fails."""
+        """Fallback analysis if AI parsing fails or API is unavailable."""
         title = event_data.get("title", "").lower()
         description = event_data.get("description", "").lower()
         text = f"{title} {description}"
@@ -119,6 +161,6 @@ Respond ONLY with the JSON object, no additional text."""
 
         return {
             "score": score,
-            "reasoning": f"Keyword match: {matches} interests found",
+            "reasoning": f"Keyword match: {matches} interests found ({', '.join([i for i in Config.INTERESTS if i.lower() in text])})" if matches > 0 else "No keyword matches found",
             "should_register": score >= 60,
         }
